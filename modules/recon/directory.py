@@ -32,24 +32,36 @@ class Directory:
         return header
     
     async def check(self, session, domain, word):
-        sites = []
+        sites = self.sites
         redirects = self.redirects
         try:
             async with session.get(domain + '/' + word, allow_redirects=redirects, headers=Directory.client_headers(self), ssl=False) as response:
-                if response.status == 200:
-                    self.sites.append(domain + '/' + word)
-                    print(response.status)
-                    print(Fore.GREEN + f'[{response.status}]' + Style.RESET_ALL + f' {domain}/{word}')
+                if response.status in {200}:
+                    sites.append(domain + '/' + word)
+                    print(Fore.GREEN + f'[{response.status}]' + Style.RESET_ALL + f' {domain}/{word}') 
+                elif response.status in {301, 302, 303, 307, 308}:
+                    sites.append(domain + '/' + word)
+                    print(Fore.YELLOW + f'[{response.status}]' + Style.RESET_ALL + f' {domain}/{word}')
+                elif response.status in {403}:
+                    sites.append(domain + '/' + word)
+                    print(Fore.YELLOW + f'[{response.status}]' + Style.RESET_ALL + f' {domain}/{word}')
                 else:
                     pass 
         except Exception as e:
             print(Fore.RED + '[!]' + Style.RESET_ALL + f' Exception occurred while checking {domain}/{word}: ' + str(e))   
     
+    async def fetch(self, sem, session, domain, word):
+        async with sem:
+            await Directory.check(self, session, domain, word)
+               
     async def enumdir(self):
         wordlist = []
         domain = self.domain
         threads = self.threads
+        sites = self.sites
         size = Directory.size()
+        sem = asyncio.Semaphore(1000)
+        
         with open('modules/support/dir-dict.txt', 'r') as file:
             for word in file:
                 word = word.strip()
@@ -59,10 +71,10 @@ class Directory:
             tasks = []
             print(Fore.GREEN + Style.BRIGHT + '-' * size + '\n' + 'DIRECTORIES'.center(size) + '\n' + '-' * size + Style.RESET_ALL)
             for word in wordlist:
-                tasks.append(asyncio.create_task(Directory.check(self, session, domain, word)))
+                tasks.append(asyncio.ensure_future(Directory.fetch(self, sem, session, domain, word)))
                 print(Fore.GREEN + '[+]' + Style.RESET_ALL + f' Request sent : {wordlist.index(word) + 1}/{len(wordlist)}')
                 print(CURSOR_UP + ERASE_LINE, end='')
             await asyncio.gather(*tasks)
-            print(Fore.GREEN + '[+]' + Style.RESET_ALL + f' {len(self.sites)} sites found\n')
+            print(Fore.GREEN + '[+]' + Style.RESET_ALL + f' {len(sites)} sites found\n')
 
     

@@ -62,8 +62,7 @@ async def kamikaze():
 
 async def main():
     await kamikaze()
+
 if __name__ == '__main__':
     uvloop.install()
     asyncio.run(main())
-    
-    
